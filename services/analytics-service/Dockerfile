@@ -1,0 +1,82 @@
+# =====================
+# BASE BUILD STAGE
+# =====================
+FROM node:18-alpine AS base
+
+# Install dependencies (openssl1.1-compat for Prisma engine, libc6 for glibc)
+RUN apk add --no-cache libc6-compat openssl1.1-compat
+
+# Set working directory
+WORKDIR /app
+
+# ---------------------
+# Install shared dependencies
+# ---------------------
+COPY shared/package*.json ./shared/
+RUN cd shared && npm ci && npm cache clean --force
+
+# ---------------------
+# Install analytics-service dependencies
+# ---------------------
+COPY services/analytics-service/package*.json ./services/analytics-service/
+RUN cd services/analytics-service && npm ci && npm cache clean --force
+
+# ---------------------
+# Copy source code
+# ---------------------
+COPY shared/ ./shared/
+COPY services/analytics-service/ ./services/analytics-service/
+
+# ---------------------
+# Build shared modules
+# ---------------------
+WORKDIR /app/shared
+RUN npm run build
+
+# ---------------------
+# Build analytics-service
+# ---------------------
+WORKDIR /app/services/analytics-service
+
+# Install any missing devDependencies for build
+RUN npm install --include=dev
+
+RUN npx prisma generate
+
+# Build TypeScript project
+RUN npm run build
+
+# ---------------------
+# Generate Prisma client
+# ---------------------
+ENV DATABASE_URL="postgresql://dummy:dummy@dummy:5432/dummy"
+RUN npx prisma generate
+
+# =====================
+# PRODUCTION STAGE
+# =====================
+FROM node:18-alpine3.18 AS production
+
+# Runtime deps: curl for healthcheck, openssl1.1-compat for Prisma engine
+RUN apk add --no-cache curl openssl1.1-compat
+
+# Create non-root user
+RUN addgroup -g 1001 -S analytics && adduser -S analytics -u 1001
+
+WORKDIR /app
+
+# Copy built app from base
+COPY --from=base --chown=analytics:analytics /app /app
+
+USER analytics
+
+EXPOSE 3008
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3008/health || exit 1
+
+ENV NODE_ENV=production
+ENV PORT=3008
+
+CMD ["node", "services/analytics-service/dist/index.js"]
+
