@@ -28,7 +28,7 @@
   "author": "Real-time Connect Team",
   "license": "MIT",
   "dependencies": {
-    "@prisma/client": "^6.16.2",
+    "@prisma/client": "^6.19.1",
     "@realtime-connect/shared": "file:../../shared",
     "aws-sdk": "^2.1479.0",
     "axios": "^1.12.2",

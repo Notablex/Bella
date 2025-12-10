@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  moderation-service:
+    build:
+      context: ../../
+      dockerfile: services/moderation-service/Dockerfile
+    container_name: moderation-service
+    ports:
+      - "3007:3007"
+    environment:
+      NODE_ENV: production
+      PORT: 3007
+      DATABASE_URL: postgresql://moderation:moderation_password@moderation-db:5432/moderation
+      REDIS_URL: redis://moderation-redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      USER_SERVICE_URL: http://user-service:3001
+      INTERACTION_SERVICE_URL: http://interaction-service:3003
+    depends_on:
+      moderation-db:
+        condition: service_healthy
+      moderation-redis:
+        condition: service_healthy
+    networks:
+      - moderation-network
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  moderation-db:
+    image: postgres:15-alpine
+    container_name: moderation-db
+    environment:
+      POSTGRES_DB: moderation
+      POSTGRES_USER: moderation
+      POSTGRES_PASSWORD: moderation_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - moderation_data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    networks:
+      - moderation-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moderation -d moderation"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  moderation-redis:
+    image: redis:7-alpine
+    container_name: moderation-redis
+    ports:
+      - "6386:6379"
+    volumes:
+      - moderation_redis_data:/data
+    networks:
+      - moderation-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+volumes:
+  moderation_data:
+  moderation_redis_data:
+
+networks:
+  moderation-network:
+    driver: bridge
+  app-network:
+    driver: bridge

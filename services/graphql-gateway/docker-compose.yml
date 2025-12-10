@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  graphql-gateway:
+    build:
+      context: ../../
+      dockerfile: services/graphql-gateway/Dockerfile
+    container_name: graphql-gateway
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      USER_SERVICE_URL: http://user-service:3001
+      QUEUING_SERVICE_URL: http://queuing-service:3002
+      INTERACTION_SERVICE_URL: http://interaction-service:3003
+      HISTORY_SERVICE_URL: http://history-service:3004
+      COMMUNICATION_SERVICE_URL: http://communication-service:3005
+      NOTIFICATION_SERVICE_URL: http://notification-service:3006
+      MODERATION_SERVICE_URL: http://moderation-service:3007
+      ANALYTICS_SERVICE_URL: http://analytics-api:3008
+      ADMIN_SERVICE_URL: http://admin-service:3009
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      REDIS_URL: redis://graphql-redis:6379
+    depends_on:
+      graphql-redis:
+        condition: service_healthy
+    networks:
+      - graphql-network
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/.well-known/apollo/server-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  graphql-redis:
+    image: redis:7-alpine
+    container_name: graphql-redis
+    ports:
+      - "6388:6379"
+    volumes:
+      - graphql_redis_data:/data
+    networks:
+      - graphql-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+volumes:
+  graphql_redis_data:
+
+networks:
+  graphql-network:
+    driver: bridge
+  app-network:
+    driver: bridge

@@ -35,46 +35,7 @@ export default function createAuthRoutes(
 ): Router {
   const router = Router();
 
-  const sessionTtlMs = Math.max(1, config.sessions.ttlHours || 24) * 60 * 60 * 1000;
-
-  const recordUserSession = async (userId: string, req: any) => {
-    try {
-      await prisma.userSession.create({
-        data: {
-          userId,
-          status: 'ONLINE',
-          ipAddress: req.ip || null,
-          userAgent: req.get?.('user-agent') || null,
-          expiresAt: new Date(Date.now() + sessionTtlMs)
-        }
-      });
-    } catch (sessionError: any) {
-      logger.warn('Failed to record user session', {
-        userId,
-        error: sessionError.message
-      });
-    }
-  };
-
-  const closeUserSessions = async (userId: string) => {
-    try {
-      await prisma.userSession.updateMany({
-        where: { 
-          userId,
-          status: { in: ['ONLINE', 'IN_CALL', 'QUEUING'] }
-        },
-        data: {
-          status: 'OFFLINE',
-          expiresAt: new Date()
-        }
-      });
-    } catch (sessionError: any) {
-      logger.warn('Failed to close user sessions', {
-        userId,
-        error: sessionError.message
-      });
-    }
-  };
+  // Session tracking removed - using stateless JWT authentication
 
   // Register new user
   router.post('/register', asyncHandler(async (req: any, res: any) => {
@@ -216,8 +177,6 @@ export default function createAuthRoutes(
 
       logger.info('User logged in successfully', { userId: user.id, email });
 
-      await recordUserSession(user.id, req);
-
       res.status(200).json({
         status: 'success',
         data: {
@@ -246,11 +205,9 @@ export default function createAuthRoutes(
   router.post('/logout', authMiddleware(prisma, logger), asyncHandler(async (req: any, res: any) => {
     try {
       // In a stateless JWT setup, logout is typically handled client-side
-      // Here we could add token blacklisting with Redis if needed
+      // Token blacklisting with Redis could be added here if needed
       
       logger.info('User logged out', { userId: req.user.id });
-
-      await closeUserSessions(req.user.id);
 
       res.status(200).json({
         status: 'success',

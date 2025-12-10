@@ -15,6 +15,7 @@ import { requestId, errorHandler } from './utils/helpers';
 // Import routes
 import createAuthRoutes from './routes/auth';
 import createProfileRoutes from './routes/profile';
+import safetyRoutes from './routes/safety';
 
 // Load environment variables
 dotenv.config();
@@ -65,6 +66,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Routes
 app.use('/auth', createAuthRoutes(prisma, redis as any, logger));
 app.use('/profile', createProfileRoutes(prisma, redis as any, logger));
+app.use('/safety', safetyRoutes);
 
 // 404 handler
 app.use((req, res) => {

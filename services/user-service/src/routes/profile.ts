@@ -638,5 +638,111 @@ export default function createProfileRoutes(
     }
   }));
 
+  // Public endpoint: Get user profile by ID (sanitized)
+  router.get('/users/:id', asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id },
+        include: {
+          profile: true,
+        },
+      });
+
+      if (!user) {
+        throw createNotFoundError('User');
+      }
+
+      // Return sanitized user data (exclude sensitive info)
+      const sanitizedUser = {
+        id: user.id,
+        username: user.username,
+        displayName: user.profile?.displayName || user.username,
+        avatar: user.profile?.photos?.[0] || null,
+        shortBio: user.profile?.shortBio || null,
+        age: user.profile?.age || null,
+        locationCity: user.profile?.locationCity || null,
+        locationCountry: user.profile?.locationCountry || null,
+        intent: user.profile?.intent || null,
+        gender: user.profile?.gender || null,
+        createdAt: user.createdAt,
+      };
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          user: sanitizedUser,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId: req.requestId,
+        },
+      });
+
+    } catch (error: any) {
+      logger.error('Get user profile failed', error);
+      throw error;
+    }
+  }));
+
+  // Public endpoint: Batch fetch users by IDs (sanitized)
+  router.post('/users/batch', asyncHandler(async (req: any, res: any) => {
+    const { userIds } = req.body;
+
+    try {
+      // Validate input
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        throw createValidationError('userIds', 'userIds must be a non-empty array');
+      }
+
+      if (userIds.length > 100) {
+        throw createValidationError('userIds', 'Cannot fetch more than 100 users at once');
+      }
+
+      const users = await prisma.user.findMany({
+        where: {
+          id: {
+            in: userIds,
+          },
+        },
+        include: {
+          profile: true,
+        },
+      });
+
+      // Return sanitized user data for all found users
+      const sanitizedUsers = users.map((user: any) => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.profile?.displayName || user.username,
+        avatar: user.profile?.photos?.[0] || null,
+        shortBio: user.profile?.shortBio || null,
+        age: user.profile?.age || null,
+        locationCity: user.profile?.locationCity || null,
+        locationCountry: user.profile?.locationCountry || null,
+        intent: user.profile?.intent || null,
+        gender: user.profile?.gender || null,
+        createdAt: user.createdAt,
+      }));
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          users: sanitizedUsers,
+          count: sanitizedUsers.length,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId: req.requestId,
+        },
+      });
+
+    } catch (error: any) {
+      logger.error('Batch fetch users failed', error);
+      throw error;
+    }
+  }));
+
   return router;
 }

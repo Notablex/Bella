@@ -1,13 +1,17 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { AuthenticatedRequest } from '../middleware/auth';
+import { AuthenticatedRequest, authMiddleware } from '../middleware/auth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
-import { logger } from '../utils/logger';
+import { Logger } from '../utils/logger';
 import Joi from 'joi';
 import axios from 'axios';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+const logger = new Logger('safety-routes');
+
+// Apply auth middleware to all safety routes
+router.use(authMiddleware(prisma, logger));
 
 // Report another user
 router.post('/report', asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {

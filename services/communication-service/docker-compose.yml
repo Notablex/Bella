@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  communication-service:
+    build:
+      context: ../../
+      dockerfile: services/communication-service/Dockerfile
+    container_name: communication-service
+    ports:
+      - "3005:3005"
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      DATABASE_URL: postgresql://communication:communication_password@communication-db:5432/communications
+      REDIS_URL: redis://communication-redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      USER_SERVICE_URL: http://user-service:3001
+      INTERACTION_SERVICE_URL: http://interaction-service:3003
+    depends_on:
+      communication-db:
+        condition: service_healthy
+      communication-redis:
+        condition: service_healthy
+    networks:
+      - communication-network
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  communication-db:
+    image: postgres:15-alpine
+    container_name: communication-db
+    environment:
+      POSTGRES_DB: communications
+      POSTGRES_USER: communication
+      POSTGRES_PASSWORD: communication_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - communication_data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    networks:
+      - communication-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U communication -d communications"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  communication-redis:
+    image: redis:7-alpine
+    container_name: communication-redis
+    ports:
+      - "6383:6379"
+    volumes:
+      - communication_redis_data:/data
+    networks:
+      - communication-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+volumes:
+  communication_data:
+  communication_redis_data:
+
+networks:
+  communication-network:
+    driver: bridge
+  app-network:
+    driver: bridge

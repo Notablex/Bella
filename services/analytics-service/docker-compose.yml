@@ -110,7 +110,7 @@ services:
     image: grafana/grafana:10.0.0
     container_name: analytics-grafana
     ports:
-      - "3001:3000"
+      - "3007:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin123
       GF_SECURITY_ADMIN_USER: admin

@@ -1,0 +1,82 @@
+version: '3.9'
+
+services:
+  subscription-service:
+    build:
+      context: ../../
+      dockerfile: services/subscription-service/Dockerfile
+    container_name: subscription-service
+    ports:
+      - "3010:3010"
+    environment:
+      NODE_ENV: production
+      PORT: 3010
+      DATABASE_URL: postgresql://subscription:subscription_password@subscription-db:5432/subscriptions
+      REDIS_URL: redis://subscription-redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      USER_SERVICE_URL: http://user-service:3001
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+    depends_on:
+      subscription-db:
+        condition: service_healthy
+      subscription-redis:
+        condition: service_healthy
+    networks:
+      - subscription-network
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  subscription-db:
+    image: postgres:15-alpine
+    container_name: subscription-db
+    environment:
+      POSTGRES_DB: subscriptions
+      POSTGRES_USER: subscription
+      POSTGRES_PASSWORD: subscription_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - subscription_data:/var/lib/postgresql/data
+    ports:
+      - "5441:5432"
+    networks:
+      - subscription-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subscription -d subscriptions"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  subscription-redis:
+    image: redis:7-alpine
+    container_name: subscription-redis
+    ports:
+      - "6389:6379"
+    volumes:
+      - subscription_redis_data:/data
+    networks:
+      - subscription-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+volumes:
+  subscription_data:
+  subscription_redis_data:
+
+networks:
+  subscription-network:
+    driver: bridge
+  app-network:
+    driver: bridge
