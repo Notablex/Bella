@@ -191,35 +191,62 @@ Real-time Connect is a modern, scalable dating and communication platform that c
 
 ### Quick Start
 
-1. **Clone and setup:**
+1. **Clone the repository:**
 ```bash
 git clone <repository-url>
-cd realtime-connect
-npm install
+cd Kindred-main
 ```
 
-2. **Environment setup:**
+2. **Start infrastructure services:**
 ```bash
+# Start PostgreSQL, Redis, and RabbitMQ
+docker-compose -f docker-compose.infrastructure.yml up -d
+```
+
+3. **Start analytics infrastructure:**
+```bash
+# Navigate to analytics service directory
+cd services/analytics-service
+
+# Start analytics services (PostgreSQL, Redis, Grafana, Prometheus)
+docker-compose up -d
+
+# Return to root directory
+cd ../..
+```
+
+4. **Setup and run each service individually:**
+
+For each service (user-service, queuing-service, interaction-service, history-service, communication-service, moderation-service, notification-service, admin-service, subscription-service, graphql-gateway):
+
+```bash
+# Navigate to service directory
+cd services/<service-name>
+
+# Copy environment file
 cp .env.example .env
-# Configure your environment variables
-```
+# Edit .env file with your configuration if needed
 
-3. **Start infrastructure:**
-```bash
-docker-compose up -d postgres redis rabbitmq
-```
+# Install dependencies
+npm install
 
-4. **Run database migrations:**
-```bash
-npm run migrate:dev
-```
+# Run database migrations
+npx prisma migrate dev
 
-5. **Start all services:**
-```bash
+# Start the service in development mode
 npm run dev
 ```
 
-6. **Run tests:**
+**Example for User Service:**
+```bash
+cd services/user-service
+cp .env.example .env
+npm install
+npx prisma migrate dev
+npm run dev
+```
+
+5. **Run tests:**
 ```bash
 ./test-phase3.sh
 ```
@@ -414,36 +441,73 @@ Our sophisticated matching system evaluates compatibility across multiple dimens
 
 ### Local Development
 
-1. **Clone and setup:**
+1. **Clone the repository:**
 ```bash
 git clone <repository-url>
-cd real-time-connect
-cp shared/config/.env.example .env
+cd Kindred-main
 ```
 
-2. **Start infrastructure:**
+2. **Start infrastructure services:**
 ```bash
-docker-compose up -d postgres redis
+# Start PostgreSQL, Redis, and RabbitMQ
+docker-compose -f docker-compose.infrastructure.yml up -d
 ```
 
-3. **Install dependencies and start services:**
+3. **Start analytics infrastructure:**
 ```bash
-# Install dependencies for all services
-npm run install-all
+# Navigate to analytics service directory
+cd services/analytics-service
+
+# Start analytics services (PostgreSQL, Redis, Grafana, Prometheus)
+docker-compose up -d
+
+# Return to root directory
+cd ../..
+```
+
+4. **Setup and run each service individually:**
+
+For each service (user-service, queuing-service, interaction-service, history-service, communication-service, moderation-service, notification-service, admin-service, subscription-service, graphql-gateway):
+
+```bash
+# Navigate to service directory
+cd services/<service-name>
+
+# Copy environment file
+cp .env.example .env
+# Edit .env file with your configuration if needed
+
+# Install dependencies
+npm install
 
 # Run database migrations
-npm run migrate
+npx prisma migrate dev
 
-# Start all services in development mode
+# Start the service in development mode
 npm run dev
 ```
 
-4. **Access services:**
+**Example for User Service:**
+```bash
+cd services/user-service
+cp .env.example .env
+npm install
+npx prisma migrate dev
+npm run dev
+```
+
+5. **Access services:**
 - User Service: http://localhost:3001
 - Queuing Service: http://localhost:3002
 - Interaction Service: http://localhost:3003
 - History Service: http://localhost:3004
 - Communication Service: http://localhost:3005
+- Notification Service: http://localhost:3006
+- Admin Service: http://localhost:3007
+- Analytics Service: http://localhost:3008
+- GraphQL Gateway: http://localhost:4000
+- Grafana Dashboard: http://localhost:3001 (analytics)
+- Prometheus: http://localhost:9091
 
 ### Production Deployment
 
