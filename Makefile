@@ -106,12 +106,22 @@ logs-redis:
 logs-rabbitmq:
 	@docker compose logs -f rabbitmq
 
-# Development commands
+# Development commands - Start single service with dependencies
 dev-user:
-	@cd services/user-service && docker compose up -d
+	@bash scripts/start-service.sh user-service
 
 dev-queuing:
-	@cd services/queuing-service && docker compose up -d
+	@bash scripts/start-service.sh queuing-service
 
 dev-interaction:
-	@cd services/interaction-service && docker compose up -d
+	@bash scripts/start-service.sh interaction-service
+
+dev-communication:
+	@bash scripts/start-service.sh communication-service
+
+dev-notification:
+	@bash scripts/start-service.sh notification-service
+
+# Start any service
+dev:
+	@bash scripts/start-service.sh $(service)

@@ -3,8 +3,8 @@
 # =====================
 FROM node:18-alpine AS base
 
-# Install dependencies (openssl1.1-compat for Prisma engine, libc6 for glibc)
-RUN apk add --no-cache libc6-compat openssl1.1-compat
+# Install dependencies (openssl for Prisma engine, libc6-compat for glibc compatibility)
+RUN apk add --no-cache libc6-compat openssl
 
 # Set working directory
 WORKDIR /app
@@ -55,10 +55,10 @@ RUN npx prisma generate
 # =====================
 # PRODUCTION STAGE
 # =====================
-FROM node:18-alpine3.18 AS production
+FROM node:18-alpine AS production
 
-# Runtime deps: curl for healthcheck, openssl1.1-compat for Prisma engine
-RUN apk add --no-cache curl openssl1.1-compat
+# Runtime deps: curl for healthcheck, openssl for Prisma engine
+RUN apk add --no-cache curl openssl
 
 # Create non-root user
 RUN addgroup -g 1001 -S analytics && adduser -S analytics -u 1001
