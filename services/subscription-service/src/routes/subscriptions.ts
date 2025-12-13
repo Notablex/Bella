@@ -3,7 +3,7 @@ import { body, query, validationResult } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
-import { StripeService } from '../services/stripe';
+import { StripeService, stripe } from '../services/stripe';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
@@ -119,8 +119,9 @@ router.post('/create',
 
     // Validate promo code if provided
     let promotionCode = null;
+    let promo = null;
     if (promoCode) {
-      const promo = await prisma.promoCode.findUnique({
+      promo = await prisma.promoCode.findUnique({
         where: { 
           code: promoCode,
           isActive: true,
@@ -182,8 +183,8 @@ router.post('/create',
         stripeSubscriptionId: stripeSubscription.id,
         stripeCustomerId: customer.id,
         isTrialActive: stripeSubscription.status === 'trialing',
-        trialStart: stripeSubscription.trial_start ? new Date(stripeSubscription.trial_start * 1000) : null,
-        trialEnd: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null,
+        trialStart: stripeSubscription.trial_start ? new Date(stripeSubscription.trial_start * 1000) : undefined,
+        trialEnd: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : undefined,
         autoRenew: true
       },
       include: {
@@ -291,7 +292,7 @@ router.put('/change-plan',
       currentSubscription.stripeSubscriptionId!,
       {
         items: [{
-          id: (await StripeService.stripe.subscriptions.retrieve(currentSubscription.stripeSubscriptionId!)).items.data[0].id,
+          id: (await stripe.subscriptions.retrieve(currentSubscription.stripeSubscriptionId!)).items.data[0].id,
           price: newStripePriceId
         }],
         proration_behavior: prorationBehavior as any
@@ -370,7 +371,7 @@ router.post('/cancel',
 
     // Update subscription in database
     const updateData: any = {
-      cancelledReason: reason || 'User requested cancellation'
+      cancellationReason: reason || 'User requested cancellation'
     };
 
     if (immediately) {

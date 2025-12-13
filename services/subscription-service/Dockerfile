@@ -52,6 +52,10 @@ COPY --from=builder /app/services/subscription-service/dist ./services/subscript
 COPY --from=builder /app/services/subscription-service/package.json ./services/subscription-service/package.json
 COPY --from=builder /app/services/subscription-service/prisma ./services/subscription-service/prisma
 
+# Copy generated Prisma client from builder
+COPY --from=builder /app/services/subscription-service/node_modules/.prisma ./services/subscription-service/node_modules/.prisma
+COPY --from=builder /app/services/subscription-service/node_modules/@prisma/client ./services/subscription-service/node_modules/@prisma/client
+
 COPY services/subscription-service/docker-entrypoint.sh ./services/subscription-service/
 RUN chmod +x ./services/subscription-service/docker-entrypoint.sh
 

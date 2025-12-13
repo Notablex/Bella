@@ -49,8 +49,8 @@ router.get('/users',
             select: {
               name: true,
               displayName: true,
-              priceAmount: true,
-              currency: true
+              monthlyPrice: true,
+              yearlyPrice: true
             }
           }
         },
@@ -87,11 +87,10 @@ router.get('/users',
           currentPrice: Number(subscription.currentPrice),
           currency: subscription.currency,
           billingCycle: subscription.billingCycle,
-          trialEndsAt: subscription.trialEndsAt,
-          trialEndedAt: subscription.trialEndedAt,
+          trialStart: subscription.trialStart,
+          trialEnd: subscription.trialEnd,
           currentPeriodStart: subscription.currentPeriodStart,
           currentPeriodEnd: subscription.currentPeriodEnd,
-          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
           canceledAt: subscription.canceledAt,
           createdAt: subscription.createdAt,
           plan: subscription.plan,
@@ -103,7 +102,7 @@ router.get('/users',
             status: latestPayment.status,
             amount: Number(latestPayment.amount) / 100,
             processedAt: latestPayment.processedAt,
-            failureMessage: latestPayment.failureMessage
+            failureMessage: latestPayment.failureMessage || undefined
           } : null
         };
       })
@@ -172,7 +171,8 @@ router.get('/users/:userId/subscription',
           currentPrice: Number(subscription.currentPrice),
           plan: {
             ...subscription.plan,
-            priceAmount: Number(subscription.plan.priceAmount)
+            monthlyPrice: Number(subscription.plan.monthlyPrice),
+            yearlyPrice: Number(subscription.plan.yearlyPrice)
           }
         },
         payments: payments.map(payment => ({
@@ -240,13 +240,18 @@ router.put('/users/:userId/subscription',
       }
 
       updateData.planId = planId;
-      updateData.currentPrice = newPlan.priceAmount;
+      updateData.currentPrice = subscription.billingCycle === 'MONTHLY' 
+        ? newPlan.monthlyPrice 
+        : newPlan.yearlyPrice;
 
       // Update in Stripe if subscription has Stripe ID
       if (subscription.stripeSubscriptionId) {
         try {
+          const stripePriceId = subscription.billingCycle === 'MONTHLY'
+            ? newPlan.stripePriceIdMonthly
+            : newPlan.stripePriceIdYearly;
           await StripeService.updateSubscription(subscription.stripeSubscriptionId, {
-            priceId: newPlan.stripePriceId!
+            items: [{ price: stripePriceId }]
           });
         } catch (error) {
           logger.error('Error updating Stripe subscription:', error);
@@ -265,18 +270,18 @@ router.put('/users/:userId/subscription',
     }
 
     // Handle cancel at period end
-    if (typeof cancelAtPeriodEnd === 'boolean') {
-      updateData.cancelAtPeriodEnd = cancelAtPeriodEnd;
-
-      // Update in Stripe
-      if (subscription.stripeSubscriptionId) {
-        try {
-          await StripeService.updateSubscription(subscription.stripeSubscriptionId, {
-            cancel_at_period_end: cancelAtPeriodEnd
-          });
-        } catch (error) {
-          logger.error('Error updating Stripe subscription:', error);
+    if (typeof cancelAtPeriodEnd === 'boolean' && subscription.stripeSubscriptionId) {
+      try {
+        await StripeService.updateSubscription(subscription.stripeSubscriptionId, {
+          cancel_at_period_end: cancelAtPeriodEnd
+        });
+        if (cancelAtPeriodEnd) {
+          updateData.cancelAt = subscription.currentPeriodEnd;
+        } else {
+          updateData.cancelAt = null;
         }
+      } catch (error) {
+        logger.error('Error updating Stripe subscription:', error);
       }
     }
 
@@ -300,7 +305,8 @@ router.put('/users/:userId/subscription',
         currentPrice: Number(updatedSubscription.currentPrice),
         plan: {
           ...updatedSubscription.plan,
-          priceAmount: Number(updatedSubscription.plan.priceAmount)
+          monthlyPrice: Number(updatedSubscription.plan.monthlyPrice),
+          yearlyPrice: Number(updatedSubscription.plan.yearlyPrice)
         }
       },
       message: 'Subscription updated successfully'
@@ -352,13 +358,14 @@ router.post('/users/:userId/subscription/cancel',
       }
 
       // Update in database
-      const updateData: any = {
-        cancelAtPeriodEnd: !immediate
-      };
+      const updateData: any = {};
 
       if (immediate) {
         updateData.status = 'CANCELED';
         updateData.canceledAt = new Date();
+        updateData.endedAt = new Date();
+      } else {
+        updateData.cancelAt = subscription.currentPeriodEnd;
       }
 
       const updatedSubscription = await prisma.userSubscription.update({
@@ -455,7 +462,7 @@ router.post('/users/:userId/subscription/reactivate',
       // Update in database
       const updateData: any = {
         status: 'ACTIVE',
-        cancelAtPeriodEnd: false,
+        cancelAt: null,
         canceledAt: null
       };
 
@@ -464,7 +471,9 @@ router.post('/users/:userId/subscription/reactivate',
           where: { id: planId }
         });
         updateData.planId = planId;
-        updateData.currentPrice = newPlan!.priceAmount;
+        updateData.currentPrice = subscription.billingCycle === 'MONTHLY'
+          ? newPlan!.monthlyPrice
+          : newPlan!.yearlyPrice;
       }
 
       const updatedSubscription = await prisma.userSubscription.update({
@@ -486,7 +495,8 @@ router.post('/users/:userId/subscription/reactivate',
           currentPrice: Number(updatedSubscription.currentPrice),
           plan: {
             ...updatedSubscription.plan,
-            priceAmount: Number(updatedSubscription.plan.priceAmount)
+            monthlyPrice: Number(updatedSubscription.plan.monthlyPrice),
+            yearlyPrice: Number(updatedSubscription.plan.yearlyPrice)
           }
         },
         message: 'Subscription reactivated successfully'
@@ -533,20 +543,18 @@ router.post('/payments/:paymentId/refund',
       throw createError('Payment already refunded', 400);
     }
 
-    const refundAmount = amount ? Math.round(parseFloat(amount) * 100) : payment.amount;
+    const refundAmount = amount ? Math.round(parseFloat(amount) * 100) : Number(payment.amount);
 
-    if (refundAmount > payment.amount) {
+    if (refundAmount > Number(payment.amount)) {
       throw createError('Refund amount cannot exceed payment amount', 400);
     }
 
     try {
       // Process refund in Stripe
-      let stripeRefund = null;
       if (payment.stripePaymentIntentId) {
-        stripeRefund = await StripeService.createRefund(
+        await StripeService.refundPayment(
           payment.stripePaymentIntentId,
-          refundAmount,
-          reason
+          refundAmount
         );
       }
 
@@ -554,10 +562,9 @@ router.post('/payments/:paymentId/refund',
       const updatedPayment = await prisma.payment.update({
         where: { id: paymentId },
         data: {
+          status: 'REFUNDED',
           refundedAt: new Date(),
-          refundAmount: refundAmount,
-          refundReason: reason,
-          stripeRefundId: stripeRefund?.id
+          refundAmount: refundAmount
         }
       });
 
@@ -573,7 +580,7 @@ router.post('/payments/:paymentId/refund',
         data: {
           ...updatedPayment,
           amount: Number(updatedPayment.amount) / 100,
-          refundAmount: Number(updatedPayment.refundAmount!) / 100
+          refundAmount: updatedPayment.refundAmount ? Number(updatedPayment.refundAmount) / 100 : 0
         },
         message: 'Payment refunded successfully'
       });
@@ -642,8 +649,7 @@ router.post('/promo-codes',
         maxUses,
         validFrom: validFrom ? new Date(validFrom) : new Date(),
         validUntil: validUntil ? new Date(validUntil) : null,
-        applicablePlanIds: planIds || [],
-        createdBy: adminId
+        applicablePlans: planIds || []
       }
     });
 

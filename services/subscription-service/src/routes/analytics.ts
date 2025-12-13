@@ -73,13 +73,16 @@ router.get('/dashboard',
       }),
       
       // Calculate conversion rate (trials to paid)
-      prisma.$queryRaw`
-        SELECT 
-          COUNT(CASE WHEN status = 'ACTIVE' AND trial_ended_at IS NOT NULL THEN 1 END) as converted,
-          COUNT(CASE WHEN trial_ended_at IS NOT NULL THEN 1 END) as total_trials
-        FROM user_subscriptions 
-        WHERE trial_ended_at >= ${thirtyDaysAgo}
-      ` as any[]
+      (async () => {
+        const result = await prisma.$queryRaw<any[]>`
+          SELECT 
+            COUNT(CASE WHEN status = 'ACTIVE' AND trial_end IS NOT NULL THEN 1 END) as converted,
+            COUNT(CASE WHEN trial_end IS NOT NULL THEN 1 END) as total_trials
+          FROM user_subscriptions 
+          WHERE trial_ended_at >= ${thirtyDaysAgo}
+        `;
+        return result;
+      })()
     ]);
 
     // Calculate churn rate (canceled / total active at start of period)

@@ -3,7 +3,7 @@ import { body, query, validationResult } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
 import { authenticateUser, requireRole, AuthenticatedRequest } from '../middleware/auth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
-import { StripeService } from '../services/stripe';
+import { StripeService, stripe } from '../services/stripe';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
@@ -118,23 +118,21 @@ router.post('/',
     }
 
     // Create Stripe prices
-    const stripePriceMonthly = await StripeService.stripe.prices.create({
+    const stripePriceMonthly = await stripe.prices.create({
       unit_amount: Math.round(monthlyPrice * 100), // Convert to cents
       currency: 'usd',
       recurring: { interval: 'month' },
       product_data: {
-        name: `${displayName} - Monthly`,
-        description: description || undefined
+        name: `${displayName} - Monthly`
       }
     });
 
-    const stripePriceYearly = await StripeService.stripe.prices.create({
+    const stripePriceYearly = await stripe.prices.create({
       unit_amount: Math.round(yearlyPrice * 100), // Convert to cents
       currency: 'usd',
       recurring: { interval: 'year' },
       product_data: {
-        name: `${displayName} - Yearly`,
-        description: description || undefined
+        name: `${displayName} - Yearly`
       }
     });
 
@@ -202,26 +200,24 @@ router.put('/:id',
 
     // Update Stripe prices if pricing changed
     if (updates.monthlyPrice && updates.monthlyPrice !== Number(existingPlan.monthlyPrice)) {
-      const stripePriceMonthly = await StripeService.stripe.prices.create({
+      const stripePriceMonthly = await stripe.prices.create({
         unit_amount: Math.round(updates.monthlyPrice * 100),
         currency: 'usd',
         recurring: { interval: 'month' },
         product_data: {
-          name: `${updates.displayName || existingPlan.displayName} - Monthly`,
-          description: updates.description || existingPlan.description || undefined
+          name: `${updates.displayName || existingPlan.displayName} - Monthly`
         }
       });
       updates.stripePriceIdMonthly = stripePriceMonthly.id;
     }
 
     if (updates.yearlyPrice && updates.yearlyPrice !== Number(existingPlan.yearlyPrice)) {
-      const stripePriceYearly = await StripeService.stripe.prices.create({
+      const stripePriceYearly = await stripe.prices.create({
         unit_amount: Math.round(updates.yearlyPrice * 100),
         currency: 'usd',
         recurring: { interval: 'year' },
         product_data: {
-          name: `${updates.displayName || existingPlan.displayName} - Yearly`,
-          description: updates.description || existingPlan.description || undefined
+          name: `${updates.displayName || existingPlan.displayName} - Yearly`
         }
       });
       updates.stripePriceIdYearly = stripePriceYearly.id;

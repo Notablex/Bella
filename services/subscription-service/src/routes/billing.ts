@@ -3,7 +3,7 @@ import { body, query, validationResult } from 'express-validator';
 import { PrismaClient } from '@prisma/client';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
-import { StripeService } from '../services/stripe';
+import { StripeService, stripe } from '../services/stripe';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
@@ -339,7 +339,7 @@ router.post('/payment-methods/confirm',
 
     try {
       // Retrieve payment method from Stripe
-      const paymentMethod = await StripeService.stripe.paymentMethods.retrieve(paymentMethodId);
+      const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
 
       if (!paymentMethod.customer) {
         throw createError('Payment method not attached to customer', 400);
@@ -458,7 +458,7 @@ router.delete('/payment-methods/:id',
 
     try {
       // Detach from Stripe
-      await StripeService.stripe.paymentMethods.detach(paymentMethod.stripePaymentMethodId);
+      await stripe.paymentMethods.detach(paymentMethod.stripePaymentMethodId);
 
       // Mark as inactive in database
       await prisma.paymentMethodInfo.update({
