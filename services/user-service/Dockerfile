@@ -1,70 +1,81 @@
-# Multi-stage Dockerfile for User Service
+# ============================================================================
+# STAGE 1: Dependencies (Production Only)
+# ============================================================================
+FROM node:18-alpine AS deps
 
-# Stage 1: Build stage
+WORKDIR /app
+
+COPY shared/package*.json ./shared/
+COPY services/user-service/package*.json ./services/user-service/
+
+# Install ONLY production dependencies
+RUN cd shared && npm ci --omit=dev && npm cache clean --force
+RUN cd services/user-service && npm ci --omit=dev && npm cache clean --force
+
+# ============================================================================
+# STAGE 2: Builder (With Dev Dependencies for TypeScript)
+# ============================================================================
 FROM node:18-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+RUN apk add --no-cache python3 make g++
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+COPY shared/package*.json ./shared/
+COPY services/user-service/package*.json ./services/user-service/
+
+# Install ALL dependencies (including devDependencies for TypeScript compilation)
+RUN cd shared && npm ci
+RUN cd services/user-service && npm ci
 
 # Copy source code
-COPY src/ ./src/
-COPY ../../shared/ ./shared/
+COPY shared/ ./shared/
+COPY services/user-service/src ./services/user-service/src
+COPY services/user-service/prisma ./services/user-service/prisma
+COPY services/user-service/tsconfig.json ./services/user-service/
 
-# Generate Prisma client
-RUN npx prisma generate
+# Build
+RUN cd shared && npm run build || true
+RUN cd services/user-service && npx prisma generate && npm run build
 
-# Build the application
-RUN npm run build
-
-# Stage 2: Production stage
+# ============================================================================
+# STAGE 3: Production (Optimized)
+# ============================================================================
 FROM node:18-alpine AS production
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache openssl wget dumb-init
 
-# Create app user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
-
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy ONLY production node_modules from deps stage (not builder)
+COPY --from=deps /app/shared/node_modules ./shared/node_modules
+COPY --from=deps /app/services/user-service/node_modules ./services/user-service/node_modules
 
-# Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Copy built artifacts from builder stage
+COPY --from=builder /app/shared/dist ./shared/dist
+COPY --from=builder /app/shared/package.json ./shared/package.json
+COPY --from=builder /app/services/user-service/dist ./services/user-service/dist
+COPY --from=builder /app/services/user-service/package.json ./services/user-service/package.json
+COPY --from=builder /app/services/user-service/prisma ./services/user-service/prisma
 
-# Copy built application from builder stage
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+# Copy generated Prisma client from builder
+COPY --from=builder /app/services/user-service/node_modules/.prisma ./services/user-service/node_modules/.prisma
+COPY --from=builder /app/services/user-service/node_modules/@prisma/client ./services/user-service/node_modules/@prisma/client
 
-# Copy Prisma files
-COPY --chown=nodejs:nodejs prisma ./prisma
+# Copy entrypoint script
+COPY services/user-service/docker-entrypoint.sh ./services/user-service/
+RUN chmod +x ./services/user-service/docker-entrypoint.sh
 
-# Create logs directory
-RUN mkdir -p /app/logs && chown nodejs:nodejs /app/logs
-
-# Create uploads directory
-RUN mkdir -p /app/uploads && chown nodejs:nodejs /app/uploads
-
-# Switch to non-root user
+# Security: Create non-root user
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
 USER nodejs
 
-# Expose port
+WORKDIR /app/services/user-service
 EXPOSE 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
-# Start the application
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/index.js"]
+CMD ["sh", "docker-entrypoint.sh"]

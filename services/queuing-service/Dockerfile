@@ -1,69 +1,69 @@
-# Multi-stage Docker build for Queuing Service
+# ============================================================================
+# STAGE 1: Dependencies
+# ============================================================================
+FROM node:18-alpine AS deps
 
-# Build stage
+WORKDIR /app
+
+COPY shared/package*.json ./shared/
+COPY services/queuing-service/package*.json ./services/queuing-service/
+
+RUN cd shared && npm ci --omit=dev && npm cache clean --force
+RUN cd services/queuing-service && npm ci --omit=dev && npm cache clean --force
+
+# ============================================================================
+# STAGE 2: Builder
+# ============================================================================
 FROM node:18-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+RUN apk add --no-cache python3 make g++
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+COPY shared/package*.json ./shared/
+COPY services/queuing-service/package*.json ./services/queuing-service/
 
-# Copy source code
-COPY src/ ./src/
-COPY prisma/ ./prisma/
+RUN cd shared && npm ci
+RUN cd services/queuing-service && npm ci
 
-# Generate Prisma client
-RUN npx prisma generate
+COPY shared/ ./shared/
+COPY services/queuing-service/src ./services/queuing-service/src
+COPY services/queuing-service/prisma ./services/queuing-service/prisma
+COPY services/queuing-service/tsconfig.json ./services/queuing-service/
 
-# Build the application
-RUN npm run build
+RUN cd shared && npm run build || true
+RUN cd services/queuing-service && npx prisma generate && npm run build
 
-# Production stage
+# ============================================================================
+# STAGE 3: Production
+# ============================================================================
 FROM node:18-alpine AS production
 
-# Create app user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodeuser -u 1001
+RUN apk add --no-cache openssl wget dumb-init
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+COPY --from=deps /app/shared/node_modules ./shared/node_modules
+COPY --from=deps /app/services/queuing-service/node_modules ./services/queuing-service/node_modules
 
-# Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+COPY --from=builder /app/shared/dist ./shared/dist
+COPY --from=builder /app/shared/package.json ./shared/package.json
+COPY --from=builder /app/services/queuing-service/dist ./services/queuing-service/dist
+COPY --from=builder /app/services/queuing-service/package.json ./services/queuing-service/package.json
+COPY --from=builder /app/services/queuing-service/prisma ./services/queuing-service/prisma
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY services/queuing-service/docker-entrypoint.sh ./services/queuing-service/
+RUN chmod +x ./services/queuing-service/docker-entrypoint.sh
 
-# Create logs directory
-RUN mkdir -p logs && chown -R nodeuser:nodejs logs
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
+USER nodejs
 
-# Change ownership of the app directory
-RUN chown -R nodeuser:nodejs /app
-
-# Switch to non-root user
-USER nodeuser
-
-# Expose port
+WORKDIR /app/services/queuing-service
 EXPOSE 3002
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3002/health', (res) => { \
-    process.exit(res.statusCode === 200 ? 0 : 1) \
-  }).on('error', () => process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3002/health || exit 1
 
-# Set environment
-ENV NODE_ENV=production
-
-# Start the application
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "docker-entrypoint.sh"]

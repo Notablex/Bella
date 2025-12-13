@@ -1,50 +1,69 @@
-# FIXED Dockerfile for communication-service
-# This fixes the OpenSSL compatibility issue with Prisma
-
-FROM node:18-slim
+# ============================================================================
+# STAGE 1: Dependencies
+# ============================================================================
+FROM node:18-alpine AS deps
 
 WORKDIR /app
 
-# Install OpenSSL 1.1 for Prisma compatibility
-# This is required because Prisma's query engine needs libssl.so.1.1
-RUN apt-get update -y && \
-    apt-get install -y openssl libssl-dev ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+COPY shared/package*.json ./shared/
+COPY services/communication-service/package*.json ./services/communication-service/
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+RUN cd shared && npm ci --omit=dev && npm cache clean --force
+RUN cd services/communication-service && npm ci --omit=dev && npm cache clean --force
 
-# Install dependencies
-RUN npm ci --only=production
+# ============================================================================
+# STAGE 2: Builder
+# ============================================================================
+FROM node:18-alpine AS builder
 
-# Copy source code
-COPY src/ ./src/
-COPY prisma/ ./prisma/
+WORKDIR /app
 
-# Generate Prisma client for the correct platform
-RUN npx prisma generate
+RUN apk add --no-cache python3 make g++
 
-# Build TypeScript application
-RUN npm run build
+COPY shared/package*.json ./shared/
+COPY services/communication-service/package*.json ./services/communication-service/
 
-# Create non-root user for security
-RUN groupadd -g 1001 nodejs && \
-    useradd -u 1001 -g nodejs commuser
+RUN cd shared && npm ci
+RUN cd services/communication-service && npm ci
 
-# Change ownership of the app directory
-RUN chown -R commuser:nodejs /app
+COPY shared/ ./shared/
+COPY services/communication-service/src ./services/communication-service/src
+COPY services/communication-service/prisma ./services/communication-service/prisma
+COPY services/communication-service/tsconfig.json ./services/communication-service/
 
-# Switch to non-root user
-USER commuser
+RUN cd shared && npm run build || true
+RUN cd services/communication-service && npx prisma generate && npm run build
 
-# Expose the service port
-EXPOSE 3006
+# ============================================================================
+# STAGE 3: Production
+# ============================================================================
+FROM node:18-alpine AS production
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3006/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+RUN apk add --no-cache openssl wget dumb-init
 
-# Start the application
-CMD ["npm", "start"]
+WORKDIR /app
 
+COPY --from=deps /app/shared/node_modules ./shared/node_modules
+COPY --from=deps /app/services/communication-service/node_modules ./services/communication-service/node_modules
+
+COPY --from=builder /app/shared/dist ./shared/dist
+COPY --from=builder /app/shared/package.json ./shared/package.json
+COPY --from=builder /app/services/communication-service/dist ./services/communication-service/dist
+COPY --from=builder /app/services/communication-service/package.json ./services/communication-service/package.json
+COPY --from=builder /app/services/communication-service/prisma ./services/communication-service/prisma
+
+COPY services/communication-service/docker-entrypoint.sh ./services/communication-service/
+RUN chmod +x ./services/communication-service/docker-entrypoint.sh
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+
+WORKDIR /app/services/communication-service
+EXPOSE 3005
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3005/health || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "docker-entrypoint.sh"]

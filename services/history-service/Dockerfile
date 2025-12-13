@@ -1,32 +1,69 @@
-FROM node:18-alpine
+# ============================================================================
+# STAGE 1: Dependencies
+# ============================================================================
+FROM node:18-alpine AS deps
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY shared/package*.json ./shared/
+COPY services/history-service/package*.json ./services/history-service/
 
-# Install dependencies
-RUN npm ci --only=production
+RUN cd shared && npm ci --omit=dev && npm cache clean --force
+RUN cd services/history-service && npm ci --omit=dev && npm cache clean --force
 
-# Copy source code
-COPY src/ ./src/
-COPY prisma/ ./prisma/
+# ============================================================================
+# STAGE 2: Builder
+# ============================================================================
+FROM node:18-alpine AS builder
 
-# Generate Prisma client
-RUN npx prisma generate
+WORKDIR /app
 
-# Build application
-RUN npm run build
+RUN apk add --no-cache python3 make g++
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S historyuser -u 1001
+COPY shared/package*.json ./shared/
+COPY services/history-service/package*.json ./services/history-service/
 
-# Change ownership of the app directory
-RUN chown -R historyuser:nodejs /app
-USER historyuser
+RUN cd shared && npm ci
+RUN cd services/history-service && npm ci
 
-EXPOSE 3005
+COPY shared/ ./shared/
+COPY services/history-service/src ./services/history-service/src
+COPY services/history-service/prisma ./services/history-service/prisma
+COPY services/history-service/tsconfig.json ./services/history-service/
 
-CMD ["npm", "start"]
+RUN cd shared && npm run build || true
+RUN cd services/history-service && npx prisma generate && npm run build
+
+# ============================================================================
+# STAGE 3: Production
+# ============================================================================
+FROM node:18-alpine AS production
+
+RUN apk add --no-cache openssl wget dumb-init
+
+WORKDIR /app
+
+COPY --from=deps /app/shared/node_modules ./shared/node_modules
+COPY --from=deps /app/services/history-service/node_modules ./services/history-service/node_modules
+
+COPY --from=builder /app/shared/dist ./shared/dist
+COPY --from=builder /app/shared/package.json ./shared/package.json
+COPY --from=builder /app/services/history-service/dist ./services/history-service/dist
+COPY --from=builder /app/services/history-service/package.json ./services/history-service/package.json
+COPY --from=builder /app/services/history-service/prisma ./services/history-service/prisma
+
+COPY services/history-service/docker-entrypoint.sh ./services/history-service/
+RUN chmod +x ./services/history-service/docker-entrypoint.sh
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+
+WORKDIR /app/services/history-service
+EXPOSE 3004
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3004/health || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "docker-entrypoint.sh"]

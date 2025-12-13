@@ -88,7 +88,7 @@ router.post('/submit',
       if (files && files.length > 0) {
         const attachments = files.map(file => ({
           ticketId: ticket.id,
-          fileName: file.originalname,
+          filename: file.originalname,
           filePath: file.path,
           fileSize: file.size,
           mimeType: file.mimetype,
@@ -142,7 +142,7 @@ router.get('/status/:ticketNumber',
           attachments: {
             select: {
               id: true,
-              fileName: true,
+              filename: true,
               fileSize: true,
               mimeType: true,
               createdAt: true,
@@ -219,7 +219,7 @@ router.post('/:ticketNumber/respond',
       if (files && files.length > 0) {
         const attachments = files.map(file => ({
           ticketId: ticket.id,
-          fileName: file.originalname,
+          filename: file.originalname,
           filePath: file.path,
           fileSize: file.size,
           mimeType: file.mimetype,

@@ -1,7 +1,11 @@
--- Initialize all databases for microservices
--- This script runs when the PostgreSQL container starts for the first time
+-- ============================================================================
+-- KINDRED - Database Initialization Script
+-- ============================================================================
+-- This script creates all databases for the 12 microservices
+-- Runs automatically when PostgreSQL container starts for the first time
+-- ============================================================================
 
--- Create databases for each service
+-- Create databases for each microservice
 CREATE DATABASE users;
 CREATE DATABASE queuing;
 CREATE DATABASE interactions;
@@ -13,7 +17,7 @@ CREATE DATABASE analytics;
 CREATE DATABASE admin;
 CREATE DATABASE subscriptions;
 
--- Grant privileges (optional, since we're using the postgres superuser)
+-- Grant all privileges to postgres user (superuser)
 GRANT ALL PRIVILEGES ON DATABASE users TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE queuing TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE interactions TO postgres;
@@ -24,3 +28,20 @@ GRANT ALL PRIVILEGES ON DATABASE moderation TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE analytics TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE admin TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE subscriptions TO postgres;
+
+-- Log completion
+\echo '============================================================================'
+\echo 'KINDRED: All 10 databases created successfully'
+\echo '============================================================================'
+\echo 'Databases:'
+\echo '  - users (user-service)'
+\echo '  - queuing (queuing-service)'
+\echo '  - interactions (interaction-service)'
+\echo '  - history (history-service)'
+\echo '  - communications (communication-service)'
+\echo '  - notifications (notification-service)'
+\echo '  - moderation (moderation-service)'
+\echo '  - analytics (analytics-service)'
+\echo '  - admin (admin-service)'
+\echo '  - subscriptions (subscription-service)'
+\echo '============================================================================'

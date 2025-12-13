@@ -1,65 +1,69 @@
-# Multi-stage build for production optimization
-FROM node:18-alpine AS base
+# ============================================================================
+# STAGE 1: Dependencies
+# ============================================================================
+FROM node:18-alpine AS deps
 
-# Install dependencies for native modules
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    && ln -sf python3 /usr/bin/python
-
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY prisma ./prisma/
+COPY shared/package*.json ./shared/
+COPY services/notification-service/package*.json ./services/notification-service/
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN cd shared && npm ci --omit=dev && npm cache clean --force
+RUN cd services/notification-service && npm ci --omit=dev && npm cache clean --force
 
-# Generate Prisma client
-RUN npx prisma generate
+# ============================================================================
+# STAGE 2: Builder
+# ============================================================================
+FROM node:18-alpine AS builder
 
-# Development stage
-FROM base AS development
-RUN npm ci
-COPY . .
-EXPOSE 3460
-CMD ["npm", "run", "dev"]
+WORKDIR /app
 
-# Build stage
-FROM base AS build
-RUN npm ci
-COPY . .
-RUN npm run build
+RUN apk add --no-cache python3 make g++
 
-# Production stage
+COPY shared/package*.json ./shared/
+COPY services/notification-service/package*.json ./services/notification-service/
+
+RUN cd shared && npm ci
+RUN cd services/notification-service && npm ci
+
+COPY shared/ ./shared/
+COPY services/notification-service/src ./services/notification-service/src
+COPY services/notification-service/prisma ./services/notification-service/prisma
+COPY services/notification-service/tsconfig.json ./services/notification-service/
+
+RUN cd shared && npm run build || true
+RUN cd services/notification-service && npx prisma generate && npm run build
+
+# ============================================================================
+# STAGE 3: Production
+# ============================================================================
 FROM node:18-alpine AS production
 
-# Create app user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S appuser -u 1001
+RUN apk add --no-cache openssl wget dumb-init
 
-# Set working directory
 WORKDIR /app
 
-# Copy production dependencies and built application
-COPY --from=base /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/prisma ./prisma
+COPY --from=deps /app/shared/node_modules ./shared/node_modules
+COPY --from=deps /app/services/notification-service/node_modules ./services/notification-service/node_modules
 
-# Create logs directory
-RUN mkdir -p logs && chown -R appuser:nodejs /app
-USER appuser
+COPY --from=builder /app/shared/dist ./shared/dist
+COPY --from=builder /app/shared/package.json ./shared/package.json
+COPY --from=builder /app/services/notification-service/dist ./services/notification-service/dist
+COPY --from=builder /app/services/notification-service/package.json ./services/notification-service/package.json
+COPY --from=builder /app/services/notification-service/prisma ./services/notification-service/prisma
 
-# Expose port
-EXPOSE 3460
+COPY services/notification-service/docker-entrypoint.sh ./services/notification-service/
+RUN chmod +x ./services/notification-service/docker-entrypoint.sh
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "const http = require('http'); const options = { host: 'localhost', port: 3460, path: '/health', timeout: 2000 }; const req = http.request(options, (res) => { if (res.statusCode === 200) { process.exit(0); } else { process.exit(1); } }); req.on('error', () => process.exit(1)); req.end();"
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
+USER nodejs
 
-# Start the application
-CMD ["node", "dist/index.js"]
+WORKDIR /app/services/notification-service
+EXPOSE 3006
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3006/health || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "docker-entrypoint.sh"]
