@@ -52,6 +52,10 @@ COPY --from=builder /app/services/history-service/dist ./services/history-servic
 COPY --from=builder /app/services/history-service/package.json ./services/history-service/package.json
 COPY --from=builder /app/services/history-service/prisma ./services/history-service/prisma
 
+# Copy generated Prisma client from builder
+COPY --from=builder /app/services/history-service/node_modules/.prisma ./services/history-service/node_modules/.prisma
+COPY --from=builder /app/services/history-service/node_modules/@prisma/client ./services/history-service/node_modules/@prisma/client
+
 COPY services/history-service/docker-entrypoint.sh ./services/history-service/
 RUN chmod +x ./services/history-service/docker-entrypoint.sh
 

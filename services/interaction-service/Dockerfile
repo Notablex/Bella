@@ -52,6 +52,10 @@ COPY --from=builder /app/services/interaction-service/dist ./services/interactio
 COPY --from=builder /app/services/interaction-service/package.json ./services/interaction-service/package.json
 COPY --from=builder /app/services/interaction-service/prisma ./services/interaction-service/prisma
 
+# Copy generated Prisma client from builder
+COPY --from=builder /app/services/interaction-service/node_modules/.prisma ./services/interaction-service/node_modules/.prisma
+COPY --from=builder /app/services/interaction-service/node_modules/@prisma/client ./services/interaction-service/node_modules/@prisma/client
+
 COPY services/interaction-service/docker-entrypoint.sh ./services/interaction-service/
 RUN chmod +x ./services/interaction-service/docker-entrypoint.sh
 

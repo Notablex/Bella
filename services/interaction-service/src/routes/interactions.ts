@@ -13,7 +13,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
     const interaction = await prisma.interaction.findUnique({
       where: { id },
       include: {
-        CallEvent: {
+        callEvents: {
           orderBy: { timestamp: 'asc' }
         }
       }

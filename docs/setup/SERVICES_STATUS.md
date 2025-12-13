@@ -6,6 +6,8 @@
 |---------|------|--------|--------|---------------|
 | **User Service** | 3001 | ✅ Running | Healthy | [API Docs](../api-tests/USER_SERVICE.md) |
 | **Queuing Service** | 3002 | ✅ Running | Healthy | [API Docs](../api-tests/QUEUING_SERVICE.md) |
+| **Interaction Service** | 3003 | ✅ Running | Healthy | WebRTC Calls & Events |
+| **History Service** | 3004 | ✅ Running | Healthy | Session History & Analytics |
 | **Notification Service** | 3006 | ✅ Running | Healthy | Push Notifications |
 | **Moderation Service** | 3007 | ✅ Running | Healthy | AI Content Moderation |
 | **Subscription Service** | 3010 | ✅ Running | Healthy | [API Docs](../api-tests/SUBSCRIPTION_SERVICE.md) |
@@ -24,6 +26,8 @@
 # Check all services
 Invoke-RestMethod -Uri "http://localhost:3001/health"  # User
 Invoke-RestMethod -Uri "http://localhost:3002/health"  # Queuing
+Invoke-RestMethod -Uri "http://localhost:3003/health"  # Interaction
+Invoke-RestMethod -Uri "http://localhost:3004/health"  # History
 Invoke-RestMethod -Uri "http://localhost:3006/health"  # Notification
 Invoke-RestMethod -Uri "http://localhost:3007/health"  # Moderation
 Invoke-RestMethod -Uri "http://localhost:3010/health"  # Subscription

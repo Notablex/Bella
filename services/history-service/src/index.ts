@@ -90,7 +90,7 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-const PORT = 4003;
+const PORT = process.env.PORT || 3004;
 
 app.listen(PORT, () => {
   logger.info(`History service running on port ${PORT}`);
