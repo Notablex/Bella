@@ -13,6 +13,12 @@ export class FCMService {
 
   private initializeFirebase(): void {
     try {
+      // Check if Firebase credentials are provided
+      if (!config.firebase.projectId || !config.firebase.clientEmail || !config.firebase.privateKey) {
+        logger.warn('Firebase credentials not configured - FCM will not be available');
+        return;
+      }
+
       // Check if Firebase is already initialized
       if (admin.apps.length === 0) {
         const serviceAccount = {
@@ -32,13 +38,23 @@ export class FCMService {
       this.messaging = admin.messaging(this.app);
       logger.info('Firebase Cloud Messaging initialized successfully');
     } catch (error) {
-      logger.error('Failed to initialize Firebase:', error);
-      throw new Error('Firebase initialization failed');
+      logger.warn('Failed to initialize Firebase - FCM will not be available:', error);
+      // Don't throw - allow service to start without Firebase
     }
   }
 
   async sendToToken(token: string, message: FCMMessage): Promise<NotificationDeliveryResult> {
     try {
+      if (!this.messaging) {
+        logger.warn('FCM not initialized - skipping notification send');
+        return {
+          deviceTokenId: '',
+          userId: '',
+          status: 'FAILED',
+          errorMessage: 'FCM not configured'
+        };
+      }
+
       const fcmMessage: admin.messaging.Message = {
         token,
         notification: message.notification,

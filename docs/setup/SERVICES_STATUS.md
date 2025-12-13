@@ -1,0 +1,95 @@
+# Services Status
+
+## ✅ Running Services
+
+| Service | Port | Status | Health | Documentation |
+|---------|------|--------|--------|---------------|
+| **User Service** | 3001 | ✅ Running | Healthy | [API Docs](../api-tests/USER_SERVICE.md) |
+| **Queuing Service** | 3002 | ✅ Running | Healthy | [API Docs](../api-tests/QUEUING_SERVICE.md) |
+| **Notification Service** | 3006 | ✅ Running | Healthy | Push Notifications |
+| **Subscription Service** | 3010 | ✅ Running | Healthy | [API Docs](../api-tests/SUBSCRIPTION_SERVICE.md) |
+
+## 🔧 Infrastructure
+
+| Component | Status | Port | Purpose |
+|-----------|--------|------|---------|
+| **PostgreSQL** | ✅ Healthy | 5432 | Database |
+| **Redis** | ✅ Healthy | 6379 | Cache & Sessions |
+| **RabbitMQ** | ✅ Healthy | 5672, 15672 | Message Queue |
+
+## 📊 Quick Health Check
+
+```powershell
+# Check all services
+Invoke-RestMethod -Uri "http://localhost:3001/health"  # User
+Invoke-RestMethod -Uri "http://localhost:3002/health"  # Queuing
+Invoke-RestMethod -Uri "http://localhost:3006/health"  # Notification
+Invoke-RestMethod -Uri "http://localhost:3010/health"  # Subscription
+```
+
+## 🚀 Start Services
+
+```powershell
+# Start infrastructure
+docker compose up -d postgres redis rabbitmq
+
+# Start services
+docker compose up -d user-service queuing-service subscription-service
+```
+
+## 🛑 Stop Services
+
+```powershell
+# Stop all
+docker compose down
+
+# Stop specific service
+docker compose stop queuing-service
+```
+
+## 📝 View Logs
+
+```powershell
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f queuing-service
+
+# Last 100 lines
+docker compose logs --tail=100 queuing-service
+```
+
+## 🔄 Restart Service
+
+```powershell
+docker compose restart queuing-service
+```
+
+## 🏗️ Rebuild Service
+
+```powershell
+docker compose build queuing-service
+docker compose up -d queuing-service
+```
+
+## ⚠️ Pending Services
+
+The following services are not yet configured:
+
+- Interaction Service (Port 3003)
+- History Service (Port 3004)
+- Communication Service (Port 3005)
+- Notification Service (Port 3006)
+- Moderation Service (Port 3007)
+- Analytics Service (Port 3008)
+- Admin Service (Port 3009)
+- GraphQL Gateway (Port 4000)
+
+## 📈 Next Steps
+
+1. Test the running services with API calls
+2. Set up remaining services one by one
+3. Configure service-to-service communication
+4. Add monitoring and logging
+5. Set up CI/CD pipelines

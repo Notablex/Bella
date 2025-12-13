@@ -9,7 +9,12 @@ Test the Kindred backend services using these guides.
    - User profiles
    - Safety features (report, block)
 
-2. **[Subscription Service](./SUBSCRIPTION_SERVICE.md)** - Port 3010
+2. **[Queuing Service](./QUEUING_SERVICE.md)** - Port 3002
+   - Queue management
+   - Advanced matching algorithm
+   - Dating preferences
+
+3. **[Subscription Service](./SUBSCRIPTION_SERVICE.md)** - Port 3010
    - Subscription plans
    - Billing and payments
    - Admin management
@@ -26,6 +31,9 @@ Test the Kindred backend services using these guides.
 ```powershell
 # Test user service
 Invoke-RestMethod -Uri "http://localhost:3001/health"
+
+# Test queuing service
+Invoke-RestMethod -Uri "http://localhost:3002/health"
 
 # Test subscription service
 Invoke-RestMethod -Uri "http://localhost:3010/api/subscription-plans"

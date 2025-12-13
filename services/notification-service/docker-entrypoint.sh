@@ -1,14 +1,13 @@
 #!/bin/sh
 set -e
 
-echo "🚀 Starting notification-service entrypoint..."
+echo "Starting notification-service entrypoint..."
 
-# Run database migrations
-echo "📦 Running Prisma migrations..."
+echo "Waiting for database..."
+sleep 5
+
+echo "Applying Prisma migrations..."
 npx prisma migrate deploy
 
-echo "✅ Migrations complete!"
-echo "🎯 Starting notification-service..."
-
-# Start the application
+echo "Starting application..."
 exec node dist/index.js

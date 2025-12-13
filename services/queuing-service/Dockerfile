@@ -52,6 +52,10 @@ COPY --from=builder /app/services/queuing-service/dist ./services/queuing-servic
 COPY --from=builder /app/services/queuing-service/package.json ./services/queuing-service/package.json
 COPY --from=builder /app/services/queuing-service/prisma ./services/queuing-service/prisma
 
+# Copy generated Prisma client from builder
+COPY --from=builder /app/services/queuing-service/node_modules/.prisma ./services/queuing-service/node_modules/.prisma
+COPY --from=builder /app/services/queuing-service/node_modules/@prisma/client ./services/queuing-service/node_modules/@prisma/client
+
 COPY services/queuing-service/docker-entrypoint.sh ./services/queuing-service/
 RUN chmod +x ./services/queuing-service/docker-entrypoint.sh
 

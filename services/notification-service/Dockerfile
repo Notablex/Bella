@@ -52,6 +52,10 @@ COPY --from=builder /app/services/notification-service/dist ./services/notificat
 COPY --from=builder /app/services/notification-service/package.json ./services/notification-service/package.json
 COPY --from=builder /app/services/notification-service/prisma ./services/notification-service/prisma
 
+# Copy generated Prisma client from builder
+COPY --from=builder /app/services/notification-service/node_modules/.prisma ./services/notification-service/node_modules/.prisma
+COPY --from=builder /app/services/notification-service/node_modules/@prisma/client ./services/notification-service/node_modules/@prisma/client
+
 COPY services/notification-service/docker-entrypoint.sh ./services/notification-service/
 RUN chmod +x ./services/notification-service/docker-entrypoint.sh
 

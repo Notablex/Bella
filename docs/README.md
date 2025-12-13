@@ -20,15 +20,17 @@ docs/
 
 ## Services Overview
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| User Service | 3001 | Authentication, profiles, safety |
-| Subscription Service | 3010 | Plans, billing, payments |
-| GraphQL Gateway | 4000 | Unified API gateway |
+| Service | Port | Status | Purpose |
+|---------|------|--------|---------|
+| User Service | 3001 | ✅ Running | Authentication, profiles, safety |
+| Queuing Service | 3002 | ✅ Running | Matching algorithm, queue management |
+| Subscription Service | 3010 | ✅ Running | Plans, billing, payments |
+| GraphQL Gateway | 4000 | ⏳ Pending | Unified API gateway |
 
 ## Quick Links
 
+- [Services Status](./setup/SERVICES_STATUS.md) ⭐
 - [User Service API](./api-tests/USER_SERVICE.md)
+- [Queuing Service API](./api-tests/QUEUING_SERVICE.md)
 - [Subscription Service API](./api-tests/SUBSCRIPTION_SERVICE.md)
-- [Docker Setup](./setup/DOCKER_SETUP.md)
-- [Database Migrations](./setup/MIGRATIONS.md)
+- [Getting Started](./setup/GETTING_STARTED.md)
