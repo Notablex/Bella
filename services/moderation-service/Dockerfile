@@ -52,6 +52,10 @@ COPY --from=builder /app/services/moderation-service/dist ./services/moderation-
 COPY --from=builder /app/services/moderation-service/package.json ./services/moderation-service/package.json
 COPY --from=builder /app/services/moderation-service/prisma ./services/moderation-service/prisma
 
+# Copy generated Prisma client from builder
+COPY --from=builder /app/services/moderation-service/node_modules/.prisma ./services/moderation-service/node_modules/.prisma
+COPY --from=builder /app/services/moderation-service/node_modules/@prisma/client ./services/moderation-service/node_modules/@prisma/client
+
 COPY services/moderation-service/docker-entrypoint.sh ./services/moderation-service/
 RUN chmod +x ./services/moderation-service/docker-entrypoint.sh
 
